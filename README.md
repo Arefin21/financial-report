@@ -124,6 +124,9 @@ Examples:
 - Excel: `http://127.0.0.1:8000/reports/project-financial/export?format=excel&fiscal_year_id=1&quarter=1`
 - PDF: `http://127.0.0.1:8000/reports/project-financial/export?format=pdf&fiscal_year_id=1&quarter=1`
 
+### Report Output Structure
+The report rows are generated per combination of **Cost Category + Economic Code** (so you can see both dimensions together). `economic_code_ids` is supported as a filter (comma-separated list).
+
 ## Improvements (if more time)
 - Add a UI to choose filters and export.
 - Add currency formatting (and localization) consistently.
