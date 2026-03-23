@@ -33,37 +33,48 @@ class ProjectFinancialReportController extends Controller
 
     private function extractFilters(Request $request): array
     {
-        $parseCsv = static function (?string $value): array {
+        $parseCsv = static function ($value): array {
             if (!$value) {
                 return [];
             }
-            return array_values(array_filter(array_map('trim', explode(',', $value)), static fn ($v) => $v !== ''));
+            if (is_array($value)) {
+                return array_values(array_filter(array_map('trim', $value), static fn ($v) => $v !== ''));
+            }
+            return array_values(array_filter(array_map('trim', explode(',', (string) $value)), static fn ($v) => $v !== ''));
         };
 
-        $divisionIds = is_array($request->query('division_ids'))
-            ? $request->query('division_ids')
-            : $parseCsv($request->query('division_ids'));
+        $divisionValue = $request->query('division_ids');
+        if ($divisionValue === null) {
+            $divisionValue = $request->query('division');
+        }
+        $divisionIds = $parseCsv($divisionValue);
 
-        $districtIds = is_array($request->query('district_ids'))
-            ? $request->query('district_ids')
-            : $parseCsv($request->query('district_ids'));
+        $districtValue = $request->query('district_ids');
+        if ($districtValue === null) {
+            $districtValue = $request->query('district');
+        }
+        $districtIds = $parseCsv($districtValue);
 
-        $categoryIds = is_array($request->query('category_ids'))
-            ? $request->query('category_ids')
-            : $parseCsv($request->query('category_ids'));
+        $categoryValue = $request->query('category_ids');
+        if ($categoryValue === null) {
+            $categoryValue = $request->query('category');
+        }
+        $categoryIds = $parseCsv($categoryValue);
 
-        $economicCodeIds = is_array($request->query('economic_code_ids'))
-            ? $request->query('economic_code_ids')
-            : $parseCsv($request->query('economic_code_ids'));
+        $economicCodeValue = $request->query('economic_code_ids');
+        if ($economicCodeValue === null) {
+            $economicCodeValue = $request->query('economic_code');
+        }
+        $economicCodeIds = $parseCsv($economicCodeValue);
 
         return [
             'fiscal_year_id' => (int) $request->query('fiscal_year_id'),
             // quarter: 1..4 or 'all'
             'quarter' => (string) $request->query('quarter', 'all'),
-            'division_ids' => array_map('intval', (array) $divisionIds),
-            'district_ids' => array_map('intval', (array) $districtIds),
-            'category_ids' => array_map('intval', (array) $categoryIds),
-            'economic_code_ids' => array_map('intval', (array) $economicCodeIds),
+            'division_ids' => array_map('intval', $divisionIds),
+            'district_ids' => array_map('intval', $districtIds),
+            'category_ids' => array_map('intval', $categoryIds),
+            'economic_code_ids' => array_map('intval', $economicCodeIds),
         ];
     }
 }
