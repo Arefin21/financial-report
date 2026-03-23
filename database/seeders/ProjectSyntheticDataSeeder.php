@@ -35,7 +35,8 @@ class ProjectSyntheticDataSeeder extends Seeder
         $fiscalYearsStart = [2024, 2025];
         $fiscalYearsCount = (int) (env('SEED_FISCAL_YEARS', 2));
         $fiscalYearsStart = array_slice($fiscalYearsStart, 0, $fiscalYearsCount);
-        $vouchersPerFiscalYear = (int) (env('SEED_VOUCHERS_PER_FISCAL_YEAR', 220));
+        // Keep defaults high enough to reliably satisfy the “>= 3000 records” requirement.
+        $vouchersPerFiscalYear = (int) (env('SEED_VOUCHERS_PER_FISCAL_YEAR', 260));
 
         // Categories are aligned with the exercise context/sample.
         $categories = [
@@ -248,7 +249,8 @@ class ProjectSyntheticDataSeeder extends Seeder
                 $fiscalMonth = $voucherDate->month >= 7 ? ($voucherDate->month - 6) : ($voucherDate->month + 6);
                 $fiscalMonth = max(1, min(12, $fiscalMonth));
 
-                $entryCount = random_int(4, 10);
+                // Ensure enough voucher_entries overall even with random variance.
+                $entryCount = random_int(6, 10);
                 $chosenEconomicCodes = $economicCodes->random($entryCount);
 
                 foreach ($chosenEconomicCodes as $econ) {
