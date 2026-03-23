@@ -12,6 +12,7 @@ use Dompdf\Dompdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -215,8 +216,8 @@ class ProjectFinancialReportService
 
         // Basic header style
         for ($col = 1; $col <= count($headers); $col++) {
-            $cell = $sheet->getCellByColumnAndRow($col, 1);
-            $sheet->getStyle($cell->getCoordinate())->getFont()->setBold(true);
+            $coord = Coordinate::stringFromColumnIndex($col) . '1';
+            $sheet->getStyle($coord)->getFont()->setBold(true);
         }
 
         $rowNum = 2;
