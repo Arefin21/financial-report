@@ -54,14 +54,34 @@ class ProjectFinancialReportService
             $fiscalMonthEnd = $q * 3;
         }
 
-        // Output categories: always include all (filtered) cost categories even if sums are zero.
+        // Load cost categories (used to display names in the output).
         $categoriesQuery = CostCategory::query();
         if (!empty($categoryIds)) {
             $categoriesQuery->whereIn('id', $categoryIds);
         }
-        $categories = $categoriesQuery->orderBy('code')->get(['id', 'code', 'name']);
+        $categories = $categoriesQuery->orderBy('code')->get(['id', 'code', 'name', 'id']);
+        $categoryById = $categories->keyBy('id');
 
-        $budgetQuarterMap = $this->budgetMap($fiscalYear->id, $fiscalMonthStart, $fiscalMonthEnd, $categoryIds, $economicCodeIds);
+        // Load economic codes within the selected category set (or within explicitly selected economic codes).
+        $economicCodesQuery = EconomicCode::query()->select(['id', 'cost_category_id', 'code', 'name']);
+        if (!empty($categoryIds)) {
+            $economicCodesQuery->whereIn('cost_category_id', $categoryIds);
+        }
+        if (!empty($economicCodeIds)) {
+            $economicCodesQuery->whereIn('id', $economicCodeIds);
+        }
+        $economicCodes = $economicCodesQuery
+            ->orderBy('cost_category_id')
+            ->orderBy('code')
+            ->get();
+
+        $budgetQuarterMap = $this->budgetMap(
+            $fiscalYear->id,
+            $fiscalMonthStart,
+            $fiscalMonthEnd,
+            $categoryIds,
+            $economicCodeIds
+        );
         $budgetAnnualMap = $this->budgetMap($fiscalYear->id, 1, 12, $categoryIds, $economicCodeIds);
         $expenseQuarterMap = $this->expenseMap($quarterStart, $quarterEnd, $divisionIds, $districtIds, $categoryIds, $economicCodeIds);
 
@@ -70,10 +90,17 @@ class ProjectFinancialReportService
         $totalBudgetQuarter = 0.0;
         $totalBudgetAnnual = 0.0;
 
-        foreach ($categories as $category) {
-            $expensesQuarter = (float) ($expenseQuarterMap[$category->id] ?? 0.0);
-            $budgetQuarter = (float) ($budgetQuarterMap[$category->id] ?? 0.0);
-            $budgetAnnual = (float) ($budgetAnnualMap[$category->id] ?? 0.0);
+        foreach ($economicCodes as $econ) {
+            $catId = (int) $econ->cost_category_id;
+            $category = $categoryById->get($catId);
+            if (!$category) {
+                // Should not happen, but keeps the report stable if filters are inconsistent.
+                continue;
+            }
+
+            $expensesQuarter = (float) ($expenseQuarterMap[$catId][$econ->id] ?? 0.0);
+            $budgetQuarter = (float) ($budgetQuarterMap[$catId][$econ->id] ?? 0.0);
+            $budgetAnnual = (float) ($budgetAnnualMap[$catId][$econ->id] ?? 0.0);
 
             $pctQuarter = $budgetQuarter > 0 ? ($expensesQuarter / $budgetQuarter) * 100 : 0.0;
             $pctAnnual = $budgetAnnual > 0 ? ($expensesQuarter / $budgetAnnual) * 100 : 0.0;
@@ -82,6 +109,9 @@ class ProjectFinancialReportService
                 'cost_category_id' => $category->id,
                 'cost_category_code' => $category->code,
                 'cost_category_name' => $category->name,
+                'economic_code_id' => $econ->id,
+                'economic_code_code' => $econ->code,
+                'economic_code_name' => $econ->name,
                 'expenses_quarter' => $expensesQuarter,
                 'budget_quarter' => $budgetQuarter,
                 'expenses_vs_budget_quarter_pct' => round($pctQuarter, 2),
@@ -115,16 +145,23 @@ class ProjectFinancialReportService
         ];
     }
 
-    private function budgetMap(int $fiscalYearId, int $fiscalMonthStart, int $fiscalMonthEnd, array $categoryIds, array $economicCodeIds): array
+    private function budgetMap(
+        int $fiscalYearId,
+        int $fiscalMonthStart,
+        int $fiscalMonthEnd,
+        array $categoryIds,
+        array $economicCodeIds
+    ): array
     {
         $query = MonthlyBudget::query()
             ->select([
                 'cost_category_id',
+                'economic_code_id',
                 DB::raw('SUM(amount) as total'),
             ])
             ->where('fiscal_year_id', $fiscalYearId)
             ->whereBetween('fiscal_month', [$fiscalMonthStart, $fiscalMonthEnd])
-            ->groupBy('cost_category_id');
+            ->groupBy('cost_category_id', 'economic_code_id');
 
         if (!empty($categoryIds)) {
             $query->whereIn('cost_category_id', $categoryIds);
@@ -137,7 +174,7 @@ class ProjectFinancialReportService
         $rows = $query->get();
         $map = [];
         foreach ($rows as $row) {
-            $map[(int) $row->cost_category_id] = (float) $row->total;
+            $map[(int) $row->cost_category_id][(int) $row->economic_code_id] = (float) $row->total;
         }
         return $map;
     }
@@ -154,10 +191,11 @@ class ProjectFinancialReportService
             ->join('vouchers', 'vouchers.id', '=', 'voucher_entries.voucher_id')
             ->select([
                 'voucher_entries.cost_category_id',
+                'voucher_entries.economic_code_id',
                 DB::raw('SUM(voucher_entries.amount) as total'),
             ])
             ->whereBetween('vouchers.voucher_date', [$quarterStart->toDateString(), $quarterEnd->toDateString()])
-            ->groupBy('voucher_entries.cost_category_id');
+            ->groupBy('voucher_entries.cost_category_id', 'voucher_entries.economic_code_id');
 
         if (!empty($divisionIds)) {
             $query->whereIn('vouchers.division_id', $divisionIds);
@@ -175,7 +213,7 @@ class ProjectFinancialReportService
         $rows = $query->get();
         $map = [];
         foreach ($rows as $row) {
-            $map[(int) $row->cost_category_id] = (float) $row->total;
+            $map[(int) $row->cost_category_id][(int) $row->economic_code_id] = (float) $row->total;
         }
         return $map;
     }
@@ -205,6 +243,7 @@ class ProjectFinancialReportService
 
         $headers = [
             'Cost Category',
+            'Economic Code',
             "Expenses as of {$endDateLabel} (currency)",
             "Budget as of {$endDateLabel} (currency)",
             "Budget expenses as of {$endDateLabel} (%)",
@@ -223,25 +262,27 @@ class ProjectFinancialReportService
         $rowNum = 2;
         foreach ($rows as $r) {
             $sheet->setCellValue("A{$rowNum}", $r['cost_category_name']);
-            $sheet->setCellValue("B{$rowNum}", $r['expenses_quarter']);
-            $sheet->setCellValue("C{$rowNum}", $r['budget_quarter']);
-            $sheet->setCellValue("D{$rowNum}", $r['expenses_vs_budget_quarter_pct']);
-            $sheet->setCellValue("E{$rowNum}", $r['budget_annual']);
-            $sheet->setCellValue("F{$rowNum}", $r['expenses_vs_budget_annual_pct']);
+            $sheet->setCellValue("B{$rowNum}", $r['economic_code_code']);
+            $sheet->setCellValue("C{$rowNum}", $r['expenses_quarter']);
+            $sheet->setCellValue("D{$rowNum}", $r['budget_quarter']);
+            $sheet->setCellValue("E{$rowNum}", $r['expenses_vs_budget_quarter_pct']);
+            $sheet->setCellValue("F{$rowNum}", $r['budget_annual']);
+            $sheet->setCellValue("G{$rowNum}", $r['expenses_vs_budget_annual_pct']);
             $rowNum++;
         }
 
         // Totals row
         $sheet->setCellValue("A{$rowNum}", 'Total Project Expenses');
-        $sheet->setCellValue("B{$rowNum}", $totals['total_expenses_quarter']);
-        $sheet->setCellValue("C{$rowNum}", $totals['total_budget_quarter']);
-        $sheet->setCellValue("D{$rowNum}", $totals['expenses_vs_budget_quarter_pct']);
-        $sheet->setCellValue("E{$rowNum}", $totals['total_budget_annual']);
-        $sheet->setCellValue("F{$rowNum}", $totals['expenses_vs_budget_annual_pct']);
+        $sheet->setCellValue("C{$rowNum}", $totals['total_expenses_quarter']);
+        $sheet->setCellValue("D{$rowNum}", $totals['total_budget_quarter']);
+        $sheet->setCellValue("E{$rowNum}", $totals['expenses_vs_budget_quarter_pct']);
+        $sheet->setCellValue("F{$rowNum}", $totals['total_budget_annual']);
+        $sheet->setCellValue("G{$rowNum}", $totals['expenses_vs_budget_annual_pct']);
 
         // Column widths
         $sheet->getColumnDimension('A')->setWidth(28);
-        foreach (['B', 'C', 'D', 'E', 'F'] as $col) {
+        $sheet->getColumnDimension('B')->setWidth(18);
+        foreach (['C', 'D', 'E', 'F', 'G'] as $col) {
             $sheet->getColumnDimension($col)->setWidth(26);
         }
 
@@ -288,6 +329,7 @@ class ProjectFinancialReportService
         $html .= '<table>';
         $html .= '<thead><tr>';
         $html .= '<th>Cost Category</th>';
+        $html .= '<th>Economic Code</th>';
         $html .= '<th class="right">Expenses as of ' . e($endDateLabel) . '</th>';
         $html .= '<th class="right">Budget as of ' . e($endDateLabel) . '</th>';
         $html .= '<th class="right">Expenses vs Budget (%)</th>';
@@ -298,6 +340,7 @@ class ProjectFinancialReportService
         foreach ($rows as $r) {
             $html .= '<tr>';
             $html .= '<td>' . e($r['cost_category_name']) . '</td>';
+            $html .= '<td>' . e($r['economic_code_code']) . '</td>';
             $html .= '<td class="right">' . number_format($r['expenses_quarter'], 2) . '</td>';
             $html .= '<td class="right">' . number_format($r['budget_quarter'], 2) . '</td>';
             $html .= '<td class="right">' . number_format($r['expenses_vs_budget_quarter_pct'], 2) . '</td>';
@@ -308,6 +351,7 @@ class ProjectFinancialReportService
 
         $html .= '<tr>';
         $html .= '<td><b>Total Project Expenses</b></td>';
+        $html .= '<td></td>';
         $html .= '<td class="right"><b>' . number_format($totals['total_expenses_quarter'], 2) . '</b></td>';
         $html .= '<td class="right"><b>' . number_format($totals['total_budget_quarter'], 2) . '</b></td>';
         $html .= '<td class="right"><b>' . number_format($totals['expenses_vs_budget_quarter_pct'], 2) . '</b></td>';
