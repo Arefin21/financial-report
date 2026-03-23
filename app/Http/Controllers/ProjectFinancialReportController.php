@@ -71,6 +71,8 @@ class ProjectFinancialReportController extends Controller
             'fiscal_year_id' => (int) $request->query('fiscal_year_id'),
             // quarter: 1..4 or 'all'
             'quarter' => (string) $request->query('quarter', 'all'),
+            // If 1 -> show category+economic-code breakdown. Default 0 to match sample output.
+            'include_economic_code' => (int) $request->query('include_economic_code', 0),
             'division_ids' => array_map('intval', $divisionIds),
             'district_ids' => array_map('intval', $districtIds),
             'category_ids' => array_map('intval', $categoryIds),
