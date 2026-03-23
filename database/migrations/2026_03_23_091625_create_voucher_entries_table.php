@@ -11,6 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // The table may exist from a previous failed migration attempt (MySQL left a partial table).
+        Schema::dropIfExists('voucher_entries');
+
         Schema::create('voucher_entries', function (Blueprint $table) {
             $table->id();
             $table->foreignId('voucher_id')->constrained('vouchers')->cascadeOnDelete();
@@ -32,3 +35,4 @@ return new class extends Migration
         Schema::dropIfExists('voucher_entries');
     }
 };
+
