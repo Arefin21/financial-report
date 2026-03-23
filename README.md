@@ -125,7 +125,13 @@ Examples:
 - PDF: `http://127.0.0.1:8000/reports/project-financial/export?format=pdf&fiscal_year_id=1&quarter=1`
 
 ### Report Output Structure
-The report rows are generated per combination of **Cost Category + Economic Code** (so you can see both dimensions together). `economic_code_ids` is supported as a filter (comma-separated list).
+By default, report rows are generated per **Cost Category only** (matching the sample output format). `economic_code_ids` still works as a filter (it affects the totals).
+
+If you want the detailed breakdown per **Cost Category + Economic Code**, pass:
+- `include_economic_code=1`
+
+Example:
+- `http://127.0.0.1:8000/reports/project-financial?fiscal_year_id=1&quarter=1&include_economic_code=1`
 
 ## Improvements (if more time)
 - Add a UI to choose filters and export.
