@@ -12,6 +12,7 @@ use Dompdf\Dompdf;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -30,7 +31,14 @@ class ProjectFinancialReportService
         $economicCodeIds = array_values(array_filter($filters['economic_code_ids'] ?? []));
 
         if ($fiscalYearId <= 0) {
-            throw new \InvalidArgumentException('fiscal_year_id is required.');
+            // If fiscal_year_id is missing, default to the latest fiscal year for a better UX.
+            $latestFiscalYearId = FiscalYear::query()->orderByDesc('id')->value('id');
+            if (!$latestFiscalYearId) {
+                throw ValidationException::withMessages([
+                    'fiscal_year_id' => ['fiscal_year_id is required.'],
+                ]);
+            }
+            $fiscalYearId = (int) $latestFiscalYearId;
         }
 
         $fiscalYear = FiscalYear::query()->findOrFail($fiscalYearId);
