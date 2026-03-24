@@ -64,6 +64,15 @@ Examples:
 - Excel: `http://127.0.0.1:8000/reports/project-financial/export?format=excel&fiscal_year_id=1&quarter=1`
 - PDF: `http://127.0.0.1:8000/reports/project-financial/export?format=pdf&fiscal_year_id=1&quarter=1`
 
+Exports (Excel/PDF) with same filters
+Excel:
+
+http://127.0.0.1:8000/reports/project-financial/export?format=excel&fiscal_year_id=1&quarter=1&division_ids=1&district_ids=5,7
+
+PDF:
+
+http://127.0.0.1:8000/reports/project-financial/export?format=pdf&fiscal_year_id=1&quarter=1&category_ids=1,2&economic_code_ids=1,2
+
 ### Report Output Structure
 By default, report rows are generated per **Cost Category only** (matching the sample output format). `economic_code_ids` still works as a filter (it affects the totals).
 
