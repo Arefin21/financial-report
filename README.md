@@ -82,8 +82,3 @@ If you want the detailed breakdown per **Cost Category + Economic Code**, pass:
 Example:
 - `http://127.0.0.1:8000/reports/project-financial?fiscal_year_id=1&quarter=1&include_economic_code=1`
 
-## Improvements (if more time)
-- Add a UI to choose filters and export.
-- Add currency formatting (and localization) consistently.
-- Add automated tests for report correctness.
-- Improve performance (pre-aggregation / caching).
